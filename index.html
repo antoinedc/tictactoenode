@@ -1,0 +1,232 @@
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <style>
+      #myCanvas {
+		margin-left:450px;
+		margin-top:80px;
+      }
+      body {
+        margin: 0px;
+        padding: 0px;
+      }
+    </style>
+	
+    <script src="http://www.kineticjs.com/download/kinetic-v4.0.1.min.js"></script>
+    <script src="http://code.jquery.com/jquery-1.8.1.min.js"></script>
+	<script src="http://localhost:8080/socket.io/socket.io.js"></script>
+
+    <script>
+		var socket = io.connect('http://localhost:8080');
+		
+        window.onload = function() {
+			
+			var x = y = 10;
+			var w = 600;
+			var p = 3;
+			
+			var stage = new Kinetic.Stage({
+				container: "myCanvas",
+				width: w,
+				height: w
+			});
+			
+			var grid = new Array();
+			var layer = new Kinetic.Layer();
+			var id = 0;
+			var team = -1;
+			
+			socket.on('connection', function(dataConnection) {
+			
+				if (!dataConnection.state)
+				{
+					alert('Error while connecting to the server, please retry.');
+					return;
+				}
+				
+				socket.on('updatePlayersCount', function(data) {
+					$('#players').html('Players connected : ' + data.players.length + '.<br />');
+					var html = '<ul>';
+					for (var i = 0; i < data.players.length; i++)
+						if (data.players[i].id != socket.socket.sessionid)
+							html += '<li><a href="#" id="' + data.players[i].id + '">' + data.players[i].nickname + '</a></li>';
+					html += '</ul>';
+					$('#players').append(html);
+				});
+				
+				socket.on('alreadyRegistered', function() {
+					alert('This pseudo is already registered');
+				});
+				
+				socket.on('alreadyHere', function() {
+					alert("You're already registered.");
+	
+				});
+				
+				socket.on('gameCancelled', function(data) {
+					alert(data.name + ' is disconnected, the game has been cancelled...');
+					$('#myCanvas').empty();
+				});
+				
+				socket.on('playerIsReady', function(data) {
+					console.log('ok');
+					if (!data.state)
+						return;
+					
+					for (var j = 0; j < p; j++)
+					{
+						for (var i = 0; i < p * p; i+=p)
+						{
+							var rect = new Kinetic.Rect({
+								x:x + i * 22,
+								y:y + j * 66,
+								width: w/(p*p),
+								height: w/(p*p),
+								stroke: "black",
+								strokeWidth: 4,
+								name:id
+							});
+							
+							var cross = new Kinetic.Circle({
+								x: rect.attrs.x + rect.getHeight() / 2,
+								y: rect.attrs.y + rect.getWidth() / 2,
+								radius: 20,
+								visible:false,
+								fill: "blue",
+								stroke: "blue"
+							});				
+							
+							var circle = new Kinetic.Circle({
+								x: rect.attrs.x + rect.getHeight() / 2,
+								y: rect.attrs.y + rect.getWidth() / 2,
+								radius: 20,
+								visible:false,
+								fill: "red",
+								stroke: "red"
+							}); 
+					
+							rect.on('mouseup', function() {
+								socket.emit('playerChoice', {pos:this.attrs.name, id:socket.socket.sessionid});
+							});
+					
+							var el = {'id':id, 'rect':rect, 'cross':cross, 'circle':circle};
+							grid.push(el);
+							
+							id++;
+							layer.add(rect);
+							layer.add(cross);
+							layer.add(circle);
+						}
+					}	
+					
+					stage.add(layer);
+				});
+			});
+			
+			socket.on('playResponse', function(data) {
+				if (!data.state)
+					return;
+				
+				if (data.team)
+				{
+					grid[data.pos].cross.attrs.visible = true;
+				}
+				else
+					grid[data.pos].circle.attrs.visible = true;
+					
+				layer.draw();
+			});
+			
+			socket.on('win', function(data) {
+				
+				if (data.me)
+					alert('You won !');
+				else
+					alert(data.winner + ' won !');				
+			});
+			
+			socket.on('notRegistered', function() {
+				alert('Register first');
+			});
+			
+			socket.on('decline', function(data) {
+			
+				alert(data.from + ' has declined your invitation.');
+			});
+			
+			socket.on('invitation', function(data) {
+				console.log('Invitation from ' + data.name + ', id:' + data.id);
+				var html = '<div class="invitation">' + data.name + ' wants to play with you ! <a href="#" id="accept_'+data.id+'">Accept</a> | <a href="#" id="decline_'+data.id+'">Decline</a></div>';
+				$('#invitations').append(html).append('<br />');
+				
+				$('#accept_'+data.id).bind('click', function() {
+					
+					socket.emit('accept', {player1:data.id, player2:socket.socket.sessionid});
+					$('#invitations').empty();
+				});
+				$('#decline_'+data.id).bind('click', function() {
+					
+					socket.emit('decline', {player1:data.id, player2:socket.socket.sessionid});
+					$('#decline_'+data.id).parents('.invitation').remove();
+				});
+			});
+			
+			socket.on('alreadyPlaying', function(data) {
+				alert(data.name + ' is already in a game !');
+			});
+			
+			socket.on('yourself', function() {
+				alert("Don't play with yourself !");
+			});
+			
+			var drawSymbol = function(symbol, pos)
+			{
+				if (symbol == '') return;
+				
+				grid[pos][symbol].attrs.visible = true;
+				console.log(grid);
+			};
+		};
+		
+		$(function() {
+						
+			$('#join').bind('click', function() {
+				if (!$('#nickname').val().length)
+				{
+					alert('Please choose a nickname.');
+					return;
+				}
+				
+				socket.emit('registerPlayer', {nickname:$('#nickname').val(), id:socket.socket.sessionid});
+			});
+			
+			$('#players > ul > li > a').live('click', function() {
+				socket.emit('invitePlayer', {id:$(this).attr('id')});
+			});
+		});
+		
+    </script>
+  </head>
+  
+  <body>
+	<p>
+		1. Register with a nickname<br />
+		2. Invite another player in the list<br />
+		3. Wait for his answer and play !<br />
+	</p>
+	<label for="nickname">Nickname: </label>
+	<input type="text" id="nickname" />
+	<input type="button" value="Join" id="join" />
+	
+	<div id="stats">
+		<div id="players"></div>
+	</div>
+	
+	<div id="invitations">
+	</div>
+	
+    <div id="myCanvas"></div>
+	
+  </body>
+  
+</html>
