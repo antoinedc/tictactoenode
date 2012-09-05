@@ -4,7 +4,7 @@
     <style>
       #myCanvas {
 		margin-left:450px;
-		margin-top:80px;
+		margin-top:20px;
       }
       body {
         margin: 0px;
@@ -12,29 +12,53 @@
       }
     </style>
 	
-    <script src="http://www.kineticjs.com/download/kinetic-v4.0.1.min.js"></script>
+    <script src="http://www.kineticjs.com/download/kinetic-v3.10.3.min.js"></script>
     <script src="http://code.jquery.com/jquery-1.8.1.min.js"></script>
 	<script src="http://localhost:8080/socket.io/socket.io.js"></script>
 
     <script>
 		var socket = io.connect('http://localhost:8080');
+		var x,y,w,p,stage,grid,layer,id,team;
 		
-        window.onload = function() {
+		var init = function() {
 			
-			var x = y = 10;
-			var w = 600;
-			var p = 3;
+			x = y = 10;
+			w = 600;
+			p = 3;
 			
-			var stage = new Kinetic.Stage({
+			stage = new Kinetic.Stage({
 				container: "myCanvas",
 				width: w,
 				height: w
 			});
 			
-			var grid = new Array();
-			var layer = new Kinetic.Layer();
-			var id = 0;
-			var team = -1;
+			grid = new Array();
+			layer = new Kinetic.Layer();
+			id = 0;
+			team = -1;
+		
+		};
+		
+		var draw = function() {
+			
+		};
+		
+        window.onload = function() {
+
+			x = y = 10;
+			w = 600;
+			p = 3;
+			
+			stage = new Kinetic.Stage({
+				container: "myCanvas",
+				width: w,
+				height: w
+			});
+			
+			grid = new Array();
+			layer = new Kinetic.Layer();
+			id = 0;
+			team = -1;
 			
 			socket.on('connection', function(dataConnection) {
 			
@@ -59,17 +83,17 @@
 				});
 				
 				socket.on('alreadyHere', function() {
-					alert("You're already registered.");
-	
+					alert("You're already registered.");	
 				});
 				
 				socket.on('gameCancelled', function(data) {
 					alert(data.name + ' is disconnected, the game has been cancelled...');
 					$('#myCanvas').empty();
+					init();
 				});
 				
 				socket.on('playerIsReady', function(data) {
-					console.log('ok');
+					
 					if (!data.state)
 						return;
 					
@@ -117,24 +141,26 @@
 							layer.add(cross);
 							layer.add(circle);
 						}
-					}	
-					
+					}		
 					stage.add(layer);
+					layer.draw();
+					$('#turn').html("It's <u>" + data.turn + "</u>'s turn");
+					
 				});
 			});
 			
 			socket.on('playResponse', function(data) {
 				if (!data.state)
 					return;
-				
+					
 				if (data.team)
-				{
 					grid[data.pos].cross.attrs.visible = true;
-				}
 				else
 					grid[data.pos].circle.attrs.visible = true;
-					
+			
 				layer.draw();
+				$('#turn').html("It's <u>" + data.playerTurn + "</u>'s turn");
+					
 			});
 			
 			socket.on('win', function(data) {
@@ -179,6 +205,12 @@
 				alert("Don't play with yourself !");
 			});
 			
+			socket.on('endGame', function() {
+				$('#myCanvas').empty();
+				$('#turn').empty();
+				init();
+			});
+			
 			var drawSymbol = function(symbol, pos)
 			{
 				if (symbol == '') return;
@@ -211,8 +243,9 @@
   <body>
 	<p>
 		1. Register with a nickname<br />
-		2. Invite another player in the list<br />
+		2. Invite a player in the list<br />
 		3. Wait for his answer and play !<br />
+		Be careful, reload the page will disconnect you ! <br />
 	</p>
 	<label for="nickname">Nickname: </label>
 	<input type="text" id="nickname" />
@@ -221,11 +254,12 @@
 	<div id="stats">
 		<div id="players"></div>
 	</div>
-	
+	<div style="text-align:center;" id="turn"></div>
 	<div id="invitations">
 	</div>
 	
     <div id="myCanvas"></div>
+	
 	
   </body>
   

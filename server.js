@@ -65,18 +65,8 @@ io.sockets.on('connection', function (socket) {
 		mybroadcast(socket, 'updatePlayersCount',{players:playersList});
 	});
 		
-	socket.on('isPlayerRegistered', function() {
-		
-		var nickname = getSessionNickname(socket);
-		
-		if (nickname)
-				socket.emit('playerIsReady', {state:true, nickname:nickname});
-		else
-			socket.emit('playerIsReady', {state:false});
-	});
-	
 	socket.on('playerChoice', function(data) {
-		
+	
 		var game = getGameByPlayerId(data.id);
 		
 		if (!game)
@@ -91,8 +81,8 @@ io.sockets.on('connection', function (socket) {
 			return;
 		}
 		
-		io.sockets.socket(game.players[0]).emit('playResponse', {state:true, team:(game.turn)%2, pos:data.pos});
-		io.sockets.socket(game.players[1]).emit('playResponse', {state:true, team:(game.turn)%2, pos:data.pos});
+		io.sockets.socket(game.players[0]).emit('playResponse', {state:true, team:(game.turn)%2, pos:data.pos,playerTurn:getPlayerById(game.players[(game.turn)%2]).nickname});
+		io.sockets.socket(game.players[1]).emit('playResponse', {state:true, team:(game.turn)%2, pos:data.pos,playerTurn:getPlayerById(game.players[(game.turn)%2]).nickname});
 		
 		var win = game.checkIfWin();
 		
@@ -101,13 +91,16 @@ io.sockets.on('connection', function (socket) {
 			if (win == game.players[0])
 			{
 				io.sockets.socket(game.players[0]).emit('win', {me:true});
-				io.sockets.socket(game.players[1]).emit('win', {me:false, winner:getPlayerById(game.players[1]).nickname});
+				io.sockets.socket(game.players[1]).emit('win', {me:false, winner:getPlayerById(game.players[0]).nickname});
 			}
 			else if (win == game.players[1])
 			{
 				io.sockets.socket(game.players[1]).emit('win', {me:true});
-				io.sockets.socket(game.players[0]).emit('win', {me:false, winner:getPlayerById(game.players[0]).nickname});
+				io.sockets.socket(game.players[0]).emit('win', {me:false, winner:getPlayerById(game.players[1]).nickname});
 			}
+			io.sockets.socket(game.players[0]).emit('endGame');
+			io.sockets.socket(game.players[1]).emit('endGame');
+			removeGame(game);
 		}
 	});
 	
@@ -200,8 +193,8 @@ io.sockets.on('connection', function (socket) {
 		games.push(newGame);
 		player1.state = 1;
 		player2.state = 1;
-		io.sockets.socket(player1.id).emit('playerIsReady', {state:true, id:player2.id});
-		io.sockets.socket(player2.id).emit('playerIsReady', {state:true, id:player2.id});
+		io.sockets.socket(player1.id).emit('playerIsReady', {state:true, turn:getPlayerById(player1.id).nickname});
+		io.sockets.socket(player2.id).emit('playerIsReady', {state:true, turn:getPlayerById(player1.id).nickname});
 	});
 	
 	socket.on('decline', function(data) {
@@ -338,6 +331,7 @@ var Game = function(player1, player2)
 		
 	this.play = function(id, pos)
 	{
+		sys.puts(turn%2);
 		if (this.players.indexOf(id) == this.turn%2)
 			if (this.grid[pos] == -1)
 			{
