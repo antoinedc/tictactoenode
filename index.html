@@ -84,6 +84,7 @@
 				socket.on('gameCancelled', function(data) {
 					alert(data.name + ' is disconnected, the game has been cancelled...');
 					$('#myCanvas').empty();
+					$('#turn').empty();
 					init();
 				});
 				
